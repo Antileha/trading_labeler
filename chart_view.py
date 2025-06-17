@@ -4,6 +4,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseEvent, MouseButton
 from plot_utils import _plot_window, _draw_candles
+from indicator_utils import apply_indicators
 
 
 class CandlestickChart(QWidget):
@@ -63,18 +64,27 @@ class CandlestickChart(QWidget):
         self._dragging = False
         self._drag_start_x = None
 
+        self.indicator_config = []
+
     def scroll_view(self, direction):
         if self.data is None:
             return
         max_index = len(self.data) - self.view_window_size
         self.view_start_index = max(0, min(self.view_start_index + direction, max_index))
-        _plot_window(self)
+        self._plot_window()
 
     def plot(self, df, tf):
         self.original_data = df.copy()
         self.current_tf = tf
-        if self.data is None:  # сохраняем положение при повторном вызове
+        if self.data is None:
             self.view_start_index = 0
+        self._plot_window()
+
+    def _plot_window(self):
+        if self.original_data is None:
+            return
+        self.data = self.original_data.copy()
+        self.data = apply_indicators(self.data, self.indicator_config)
         _plot_window(self)
 
     def onclick(self, event: MouseEvent):
@@ -84,7 +94,7 @@ class CandlestickChart(QWidget):
             index = round(event.xdata)
             if 0 <= index < len(self.data):
                 row = self.data.iloc[self.view_start_index + index]
-                self.label_manager.handle_click(row, lambda: _plot_window(self))
+                self.label_manager.handle_click(row, lambda: self._plot_window())
         elif event.button == MouseButton.LEFT:
             self._dragging = True
             self._drag_start_x = event.xdata
@@ -108,4 +118,3 @@ class CandlestickChart(QWidget):
         elif event.button == 'down':
             self.view_window_size += 10
         self.scroll_view(0)
-
