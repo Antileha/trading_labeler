@@ -5,8 +5,9 @@ from PyQt5.QtWidgets import (
 from data_loader import load_csv_data
 from label_manager import LabelManager
 from chart_view import CandlestickChart
-from label_manager import save_labeled_data
-import pandas as pd
+from label_manager import (
+    save_labeled_data
+)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -27,8 +28,12 @@ class MainWindow(QMainWindow):
         self.load_button.clicked.connect(self.load_csv)
 
         self.save_button = QPushButton("Сохранить CSV с метками")
-        self.layout().addWidget(self.save_button)
+        self.save_temp_button = QPushButton("💾 Сохранить разметку")
+        self.load_temp_button = QPushButton("📂 Загрузить разметку")
+
         self.save_button.clicked.connect(self.save_csv)
+        self.save_temp_button.clicked.connect(self.save_label_session)
+        self.load_temp_button.clicked.connect(self.load_label_session)
 
         self.prev_button = QPushButton("← Назад")
         self.prev_button.clicked.connect(self.scroll_left)
@@ -36,12 +41,17 @@ class MainWindow(QMainWindow):
         self.next_button = QPushButton("Вперёд →")
         self.next_button.clicked.connect(self.scroll_right)
 
+        self.label_manager.autoload_labels('labels_autosave.csv')
+
+
         top_layout = QHBoxLayout()
         top_layout.addWidget(self.load_button)
         top_layout.addWidget(self.prev_button)
         top_layout.addWidget(self.tf_selector)
         top_layout.addWidget(self.next_button)
         top_layout.addWidget(self.save_button)
+        top_layout.addWidget(self.save_temp_button)
+        top_layout.addWidget(self.load_temp_button)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -61,6 +71,8 @@ class MainWindow(QMainWindow):
             self.data = load_csv_data(file_path)
             self.label.setText(f"Файл загружен: {file_path.split('/')[-1]}\nСтрок: {len(self.data)}")
             self.label_manager.clear()
+            self.chart.plot(self.data, tf="4h")  # отрисовываем график
+            self.label_manager.autoload_labels('labels_autosave.csv')  # подгружаем автосохранённые метки
             self.update_plot()
         except Exception as e:
             self.label.setText(f"Ошибка при загрузке: {str(e)}")
@@ -75,6 +87,23 @@ class MainWindow(QMainWindow):
 
     def scroll_right(self):
         self.chart.scroll_view(1)
+
+    def closeEvent(self, event):
+        self.label_manager.autosave_labels('labels_autosave.csv')
+        event.accept()
+
+    def save_label_session(self):
+        from PyQt5.QtWidgets import QFileDialog
+        filepath, _ = QFileDialog.getSaveFileName(self, "Сохранить разметку", "labels_stage1.csv", "CSV (*.csv)")
+        if filepath:
+            self.label_manager.save_label_session(filepath)
+
+    def load_label_session(self):
+        from PyQt5.QtWidgets import QFileDialog
+        filepath, _ = QFileDialog.getOpenFileName(self, "Загрузить разметку", "", "CSV (*.csv)")
+        if filepath:
+            self.label_manager.load_label_session(filepath)
+            self.chart.plot(self.chart.original_data, self.chart.current_tf)
 
     def save_csv(self):
         from PyQt5.QtWidgets import QFileDialog

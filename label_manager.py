@@ -58,6 +58,44 @@ class LabelManager:
     def clear(self):
         self.labels = self.labels.iloc[0:0]
 
+    def save_label_session(self, filepath='labels_session.csv'):
+        """Сохраняет текущие метки в указанный файл"""
+        self.labels.to_csv(filepath, index=False)
+        print(f"[INFO] Разметка сохранена в {filepath}")
+
+    def load_label_session(self, filepath='labels_session.csv'):
+        """Загружает разметку из указанного файла"""
+        try:
+            loaded = pd.read_csv(filepath, parse_dates=['Date'])
+            loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
+            self.labels = pd.concat([self.labels, loaded], ignore_index=True)
+            self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
+            self.labels.sort_values(by='Date', inplace=True)
+            print(f"[INFO] Загружено {len(loaded)} меток из {filepath}")
+        except FileNotFoundError:
+            print(f"[WARN] Файл {filepath} не найден")
+        except Exception as e:
+            print(f"[ERROR] Ошибка при загрузке разметки: {e}")
+
+    def autosave_labels(self, filepath='labels_autosave.csv'):
+        """Автоматическое сохранение в конец сессии"""
+        self.labels.to_csv(filepath, index=False)
+        print(f"[AUTO] Автосохранение в {filepath}")
+
+    def autoload_labels(self, filepath='labels_autosave.csv'):
+        """Автоматическая загрузка меток при запуске"""
+        try:
+            loaded = pd.read_csv(filepath, parse_dates=['Date'])
+            loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
+            self.labels = pd.concat([self.labels, loaded], ignore_index=True)
+            self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
+            self.labels.sort_values(by='Date', inplace=True)
+            print(f"[AUTO] Загружено {len(loaded)} автосохранённых меток из {filepath}")
+        except FileNotFoundError:
+            print("[INFO] Автосохранение отсутствует")
+        except Exception as e:
+            print(f"[ERROR] Ошибка автозагрузки: {e}")
+
 def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
 
     df = chart.data.copy()
