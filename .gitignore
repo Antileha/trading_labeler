@@ -1,0 +1,17 @@
+# IDE
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Данные
+*.csv
+!dataset/*.csv  # если хочешь оставить часть
+
+# Системные
+.DS_Store
+Thumbs.db

@@ -57,3 +57,25 @@ class LabelManager:
 
     def clear(self):
         self.labels = self.labels.iloc[0:0]
+
+def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
+
+    df = chart.data.copy()
+    df['Label'] = ''
+    df['LabelPrice'] = None
+
+    df['Date'] = pd.to_datetime(df['Date'])
+    labels = chart.label_manager.labels.copy()
+    labels['Date'] = pd.to_datetime(labels['Date'])
+
+    for _, row in labels.iterrows():
+        match = df['Date'] == row['Date']
+        idx = df.index[match]
+        if not idx.empty and idx[0] > 0:
+            prev_idx = idx[0] - 1
+            df.at[prev_idx, 'Label'] = row['Label']
+            df.at[prev_idx, 'LabelPrice'] = row['Price']
+
+    if selected_columns:
+        cols_to_save = ['Date'] + [col for col in selected_columns if col != 'Date']
+        df[cols_to_save].to_csv(filepath, index=False)
