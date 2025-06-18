@@ -121,12 +121,12 @@ class LabelManager:
 
             # Цвет и маркер
             if label.lower() in ['buy', 'addbuy']:
-                color = 'green'
+                color = 'cyan'
                 marker = '^'
             elif label.lower() in ['sell', 'addsell']:
                 color = 'red'
                 marker = 'v'
-            elif label.lower() in ['close buy', 'close sell']:
+            elif label.lower() in ['close_buy', 'close_sell']:
                 color = 'black'
                 marker = 'x'
             elif 'stoploss' in label.lower():
