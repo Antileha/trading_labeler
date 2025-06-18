@@ -43,3 +43,4 @@ trading_labeler/
 - matplotlib
 - pandas
 - mplfinance (0.11.1a0)
+- ta
