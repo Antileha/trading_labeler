@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
 from data_loader import load_csv_data
 from label_manager import LabelManager
 from chart_view import CandlestickChart
+from indicator_dialog import IndicatorManagerDialog
 from label_manager import (
     save_labeled_data
 )
@@ -35,13 +36,16 @@ class MainWindow(QMainWindow):
         self.save_temp_button.clicked.connect(self.save_label_session)
         self.load_temp_button.clicked.connect(self.load_label_session)
 
+        self.indicator_button = QPushButton("Настроить индикаторы")
+        self.indicator_button.clicked.connect(self.configure_indicators)
+
         self.prev_button = QPushButton("← Назад")
         self.prev_button.clicked.connect(self.scroll_left)
 
         self.next_button = QPushButton("Вперёд →")
         self.next_button.clicked.connect(self.scroll_right)
 
-        self.label_manager.autoload_labels('labels_autosave.csv')
+        # self.label_manager.autoload_labels('labels_autosave.csv')
 
 
         top_layout = QHBoxLayout()
@@ -52,6 +56,7 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.save_button)
         top_layout.addWidget(self.save_temp_button)
         top_layout.addWidget(self.load_temp_button)
+        top_layout.addWidget(self.indicator_button)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -62,6 +67,12 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
         self.data = None
+
+    def configure_indicators(self):
+        dialog = IndicatorManagerDialog(self.chart.indicator_config, self)
+        if dialog.exec_():
+            self.chart.indicator_config = dialog.get_updated_config()
+            self.chart._plot_window()
 
     def load_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Выберите CSV файл", "", "CSV Files (*.csv)")
@@ -99,16 +110,12 @@ class MainWindow(QMainWindow):
             self.label_manager.save_label_session(filepath)
 
     def load_label_session(self):
-        from PyQt5.QtWidgets import QFileDialog
         filepath, _ = QFileDialog.getOpenFileName(self, "Загрузить разметку", "", "CSV (*.csv)")
         if filepath:
             self.label_manager.load_label_session(filepath)
             self.chart.plot(self.chart.original_data, self.chart.current_tf)
 
     def save_csv(self):
-        from PyQt5.QtWidgets import QFileDialog
-        from label_manager import save_labeled_data
-
         # Получаем все доступные колонки из графика
         all_columns = list(self.chart.data.columns) + ['Label', 'LabelPrice']
 

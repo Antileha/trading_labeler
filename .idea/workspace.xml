@@ -5,15 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="930c4ecd-e5a1-4eb6-bb35-93fc5ce9d46f" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/trading_labeler.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/trading_labeler.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/chart_view.py" beforeDir="false" afterPath="$PROJECT_DIR$/chart_view.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/indicator_dialog.py" beforeDir="false" afterPath="$PROJECT_DIR$/indicator_dialog.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/label_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/label_manager.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/labels.csv" beforeDir="false" afterPath="$PROJECT_DIR$/labels.csv" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/plot_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/plot_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui_main.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui_main.py" afterDir="false" />
     </list>
@@ -98,7 +94,8 @@
       <workItem from="1749663784387" duration="147000" />
       <workItem from="1750080062871" duration="20000" />
       <workItem from="1750080084605" duration="7127000" />
-      <workItem from="1750140844060" duration="1787000" />
+      <workItem from="1750140844060" duration="13437000" />
+      <workItem from="1750232077887" duration="2288000" />
     </task>
     <servers />
   </component>
@@ -117,6 +114,6 @@
     </option>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/trading_labeler$main.coverage" NAME="main Coverage Results" MODIFIED="1750142475492" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/trading_labeler$main.coverage" NAME="main Coverage Results" MODIFIED="1750233968202" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

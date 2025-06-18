@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT
 from matplotlib.figure import Figure
 from matplotlib.backend_bases import MouseEvent, MouseButton
-from plot_utils import _plot_window, _draw_candles
+from plot_utils import _plot_window
 
 
 class CandlestickChart(QWidget):
@@ -59,6 +59,7 @@ class CandlestickChart(QWidget):
         self.current_tf = "4h"
         self.view_start_index = 0
         self.view_window_size = 200
+        self.indicator_config = []
 
         self._dragging = False
         self._drag_start_x = None
@@ -68,13 +69,16 @@ class CandlestickChart(QWidget):
             return
         max_index = len(self.data) - self.view_window_size
         self.view_start_index = max(0, min(self.view_start_index + direction, max_index))
-        _plot_window(self)
+        self._plot_window()
 
     def plot(self, df, tf):
         self.original_data = df.copy()
+        self.data = df.copy()  # добавлено
         self.current_tf = tf
-        if self.data is None:  # сохраняем положение при повторном вызове
-            self.view_start_index = 0
+        self.view_start_index = 0
+        _plot_window(self)
+
+    def _plot_window(self):
         _plot_window(self)
 
     def onclick(self, event: MouseEvent):
@@ -84,7 +88,7 @@ class CandlestickChart(QWidget):
             index = round(event.xdata)
             if 0 <= index < len(self.data):
                 row = self.data.iloc[self.view_start_index + index]
-                self.label_manager.handle_click(row, lambda: _plot_window(self))
+                self.label_manager.handle_click(row, lambda: self._plot_window())
         elif event.button == MouseButton.LEFT:
             self._dragging = True
             self._drag_start_x = event.xdata
@@ -96,8 +100,10 @@ class CandlestickChart(QWidget):
     def on_mouse_move(self, event):
         if not self._dragging or event.xdata is None:
             return
+
         dx = event.xdata - self._drag_start_x
-        bars_to_shift = int(-dx)
+        bars_to_shift = int(-dx * 2)  # Повышаем чувствительность прокрутки в 2 раза
+
         if bars_to_shift != 0:
             self.scroll_view(bars_to_shift)
             self._drag_start_x = event.xdata
@@ -107,5 +113,4 @@ class CandlestickChart(QWidget):
             self.view_window_size = max(10, self.view_window_size - 10)
         elif event.button == 'down':
             self.view_window_size += 10
-        self.scroll_view(0)
-
+        self._plot_window()
