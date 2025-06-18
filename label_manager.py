@@ -82,19 +82,68 @@ class LabelManager:
         self.labels.to_csv(filepath, index=False)
         print(f"[AUTO] Автосохранение в {filepath}")
 
-    def autoload_labels(self, filepath='labels_autosave.csv'):
-        """Автоматическая загрузка меток при запуске"""
-        try:
-            loaded = pd.read_csv(filepath, parse_dates=['Date'])
-            loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
-            self.labels = pd.concat([self.labels, loaded], ignore_index=True)
-            self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
-            self.labels.sort_values(by='Date', inplace=True)
-            print(f"[AUTO] Загружено {len(loaded)} автосохранённых меток из {filepath}")
-        except FileNotFoundError:
-            print("[INFO] Автосохранение отсутствует")
-        except Exception as e:
-            print(f"[ERROR] Ошибка автозагрузки: {e}")
+    # def autoload_labels(self, filepath='labels_autosave.csv'):
+    #     """Автоматическая загрузка меток при запуске"""
+    #     try:
+    #         loaded = pd.read_csv(filepath, parse_dates=['Date'])
+    #         loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
+    #         self.labels = pd.concat([self.labels, loaded], ignore_index=True)
+    #         self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
+    #         self.labels.sort_values(by='Date', inplace=True)
+    #         print(f"[AUTO] Загружено {len(loaded)} автосохранённых меток из {filepath}")
+    #     except FileNotFoundError:
+    #         print("[INFO] Автосохранение отсутствует")
+    #     except Exception as e:
+    #         print(f"[ERROR] Ошибка автозагрузки: {e}")
+
+    def draw_labels(self, chart):
+        if self.labels.empty or chart.data is None:
+            return
+
+        df_window = chart.data.reset_index(drop=True)
+        df_original = chart.original_data.reset_index(drop=True)
+
+        date_to_global_idx = {row["Date"]: idx for idx, row in df_original.iterrows()}
+
+        for _, row in self.labels.iterrows():
+            date = row["Date"]
+            if date not in date_to_global_idx:
+                continue
+
+            global_idx = date_to_global_idx[date]
+            local_idx = global_idx - chart.view_start_index
+
+            if not (0 <= local_idx < chart.view_window_size):
+                continue  # вне области видимости
+
+            price = row["Price"]
+            label = row["Label"]
+
+            # Цвет и маркер
+            if label.lower() in ['buy', 'addbuy']:
+                color = 'green'
+                marker = '^'
+            elif label.lower() in ['sell', 'addsell']:
+                color = 'red'
+                marker = 'v'
+            elif label.lower() in ['close buy', 'close sell']:
+                color = 'black'
+                marker = 'x'
+            elif 'stoploss' in label.lower():
+                color = 'orange'
+                marker = 's'
+            else:
+                color = 'blue'
+                marker = 'o'
+
+            # Точка
+            chart.axes.scatter(local_idx, price, color=color, marker=marker, s=60, zorder=5)
+
+            # Горизонтальный отрезок длиной 3 бара
+            x_start = max(0, local_idx - 2)
+            x_end = min(chart.view_window_size - 1, local_idx + 3)
+            chart.axes.plot([x_start, x_end], [price, price], color='black', linestyle='-', alpha=1, linewidth=1.5)
+
 
 def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
 

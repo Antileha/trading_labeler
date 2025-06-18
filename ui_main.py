@@ -45,7 +45,7 @@ class MainWindow(QMainWindow):
         self.next_button = QPushButton("Вперёд →")
         self.next_button.clicked.connect(self.scroll_right)
 
-        self.label_manager.autoload_labels('labels_autosave.csv')
+        # self.label_manager.autoload_labels('labels_autosave.csv')
 
 
         top_layout = QHBoxLayout()

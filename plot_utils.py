@@ -9,60 +9,95 @@ def _draw_candles(ax, data):
     for i, row in data.iterrows():
         color = 'green' if row['Close'] >= row['Open'] else 'red'
         ax.plot([i, i], [row['Low'], row['High']], color=color)
-        ax.add_patch(plt.Rectangle((i - width/2, min(row['Open'], row['Close'])), width,
-                                   abs(row['Close'] - row['Open']), color=color))
+        ax.add_patch(plt.Rectangle(
+            (i - width/2, min(row['Open'], row['Close'])),
+            width,
+            abs(row['Close'] - row['Open']),
+            color=color
+        ))
 
 def _plot_window(chart):
     if chart.original_data is None:
         return
 
+    # Копируем и ресемплим данные
     df = chart.original_data.copy()
-    chart.data = df.iloc[chart.view_start_index: chart.view_start_index + chart.view_window_size]
-    df_window = chart.data.copy().reset_index(drop=True)
+    df.set_index('Date', inplace=True)
+    df = df.resample(chart.current_tf).agg({
+        'Open': 'first',
+        'High': 'max',
+        'Low': 'min',
+        'Close': 'last',
+        'Volume': 'sum'
+    }).dropna()
+    df.reset_index(inplace=True)
 
-    chart.axes.clear()
-    chart.rsi_axes.clear()
-
-    _draw_candles(chart.axes, df_window)
-
-    # Отрисовка пользовательских индикаторов
+    # Вычисление индикаторов по всему датафрейму
     for ind_cfg in chart.indicator_config:
         col_name = f"{ind_cfg['type']}_{ind_cfg['period']}"
         try:
             if ind_cfg['type'].lower() == 'ema':
-                df_window[col_name] = EMAIndicator(df_window['Close'], window=ind_cfg['period']).ema_indicator()
+                df[col_name] = EMAIndicator(df['Close'], window=ind_cfg['period']).ema_indicator()
             elif ind_cfg['type'].lower() == 'rsi':
-                df_window[col_name] = RSIIndicator(df_window['Close'], window=ind_cfg['period']).rsi()
+                df[col_name] = RSIIndicator(df['Close'], window=ind_cfg['period']).rsi()
             elif ind_cfg['type'].lower() == 'wma':
-                df_window[col_name] = WMAIndicator(df_window['Close'], window=ind_cfg['period']).wma()
-            elif ind_cfg['type'].lower() == 'adx':
-                df_window[col_name] = ADXIndicator(df_window['High'], df_window['Low'], df_window['Close'], window=ind_cfg['period']).adx()
-            elif ind_cfg['type'].lower() == 'macd':
-                df_window[col_name] = macd(df_window['Close'])
-            elif ind_cfg['type'].lower() == 'stoch':
-                df_window[col_name] = stoch(df_window['High'], df_window['Low'], df_window['Close'], window=ind_cfg['period'])
-            else:
-                continue
+                df[col_name] = WMAIndicator(df['Close'], window=ind_cfg['period']).wma()
+        except Exception:
+            continue
 
-            target_ax = chart.axes if ind_cfg['axis'] == 'main' else chart.rsi_axes
-            series = df_window[col_name].fillna(method='ffill').fillna(method='bfill')
-            target_ax.plot(df_window.index, series, label=col_name, color=ind_cfg.get('color', 'black'))
+    df.dropna(inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    chart.data = df  # сохраняем для привязки меток
 
-        except Exception as e:
-            print(f"[ERROR] Indicator {col_name} failed: {e}")
+    # Окно отображения
+    start = chart.view_start_index
+    end = start + chart.view_window_size
+    view_df = df.iloc[start:end].reset_index(drop=True)
 
-    chart.axes.legend(loc='upper left', fontsize=8)
-    chart.axes.set_xticks(range(0, len(df_window), max(len(df_window) // 10, 1)))
-    chart.axes.set_xticklabels(df_window['Date'].iloc[::max(len(df_window) // 10, 1)], rotation=0, fontsize=8)
+    chart.axes.clear()
+    chart.rsi_axes.clear()
 
-    chart.rsi_axes.set_xticks(range(0, len(df_window), max(len(df_window) // 10, 1)))
-    chart.rsi_axes.set_xticklabels(df_window['Date'].iloc[::max(len(df_window) // 10, 1)], rotation=0, fontsize=8)
-    chart.rsi_axes.axhline(20, color='red', linestyle='--', linewidth=0.5)
-    chart.rsi_axes.axhline(30, color='green', linestyle='--', linewidth=0.5)
-    chart.rsi_axes.axhline(40, color='cyan', linestyle='--', linewidth=0.5)
-    chart.rsi_axes.axhline(60, color='cyan', linestyle='--', linewidth=0.5)
-    chart.rsi_axes.axhline(70, color='green', linestyle='--', linewidth=0.5)
-    chart.rsi_axes.axhline(80, color='red', linestyle='--', linewidth=0.5)
+    # Рисуем свечи
+    _draw_candles(chart.axes, view_df)
+
+    # Рисуем индикаторы
+    for ind_cfg in chart.indicator_config:
+        col_name = f"{ind_cfg['type']}_{ind_cfg['period']}"
+        if col_name in view_df.columns:
+            target_ax = chart.axes if ind_cfg.get("axis", "main") == "main" else chart.rsi_axes
+            target_ax.plot(view_df.index, view_df[col_name], color=ind_cfg.get("color", "gray"), label=col_name)
+
+    # RSI уровни
+    for level, color in [(20, 'red'), (30, 'green'), (40, 'cyan'), (60, 'cyan'), (70, 'green'), (80, 'red')]:
+        chart.rsi_axes.axhline(level, color=color, linestyle='--', linewidth=0.5)
+
+    # Метки
+    if chart.label_manager and chart.label_manager.labels is not None:
+        for _, row in chart.label_manager.labels.iterrows():
+            match_idx = df[df['Date'] == pd.to_datetime(row['Date'])]
+            if not match_idx.empty:
+                index = match_idx.index[0] - start
+                if 0 <= index < len(view_df):
+                    x = index
+                    y = row['Price']
+                    label = row['Label'].lower()
+                    symbol = {'buy': '↑', 'addbuy': '⇑', 'sell': '↓', 'addsell': '⇓',
+                              'close buy': '×', 'close sell': '×', 'stoploss buy': '‼', 'stoploss sell': '‼'}.get(label, '?')
+                    color = {'buy': 'blue', 'addbuy': 'deepskyblue', 'sell': 'red', 'addsell': 'hotpink',
+                             'close buy': 'black', 'close sell': 'black', 'stoploss buy': 'orange', 'stoploss sell': 'orange'}.get(label, 'gray')
+                    chart.axes.text(x, y, symbol, color=color, fontsize=14, ha='center', va='center')
+                    chart.axes.plot([x - 1, x + 1], [y, y], color='black', linewidth=1)
+
+    # Оформление
+    chart.axes.set_xticks(range(0, len(view_df), max(len(view_df) // 10, 1)))
+    chart.axes.set_xticklabels(view_df['Date'].dt.strftime('%Y-%m-%d').iloc[::max(len(view_df) // 10, 1)],
+                                rotation=45, fontsize=8)
+    chart.axes.legend(fontsize=8)
+
+    chart.rsi_axes.set_xticks(range(0, len(view_df), max(len(view_df) // 10, 1)))
+    chart.rsi_axes.set_xticklabels(view_df['Date'].dt.strftime('%Y-%m-%d').iloc[::max(len(view_df) // 10, 1)],
+                                    rotation=45, fontsize=8)
+    chart.rsi_axes.legend(fontsize=8)
 
     chart.candle_canvas.draw()
     chart.rsi_canvas.draw()
