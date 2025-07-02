@@ -68,25 +68,29 @@ def _plot_window(chart):
             target_ax.plot(view_df.index, view_df[col_name], color=ind_cfg.get("color", "gray"), label=col_name)
 
     # RSI уровни
-    for level, color in [(20, 'red'), (30, 'green'), (40, 'cyan'), (60, 'cyan'), (70, 'green'), (80, 'red')]:
+    for level, color in [(20, 'red'), (30, 'green'), (40, 'cyan'), (50, 'black'), (60, 'cyan'), (70, 'green'), (80, 'red')]:
         chart.rsi_axes.axhline(level, color=color, linestyle='--', linewidth=0.5)
 
-    # Метки
-    if chart.label_manager and chart.label_manager.labels is not None:
-        for _, row in chart.label_manager.labels.iterrows():
-            match_idx = df[df['Date'] == pd.to_datetime(row['Date'])]
-            if not match_idx.empty:
-                index = match_idx.index[0] - start
-                if 0 <= index < len(view_df):
-                    x = index
-                    y = row['Price']
-                    label = row['Label'].lower()
-                    symbol = {'buy': '↑', 'addbuy': '⇑', 'sell': '↓', 'addsell': '⇓',
-                              'close buy': '×', 'close sell': '×', 'stoploss buy': '‼', 'stoploss sell': '‼'}.get(label, '?')
-                    color = {'buy': 'blue', 'addbuy': 'deepskyblue', 'sell': 'red', 'addsell': 'hotpink',
-                             'close buy': 'black', 'close sell': 'black', 'stoploss buy': 'orange', 'stoploss sell': 'orange'}.get(label, 'gray')
-                    chart.axes.text(x, y, symbol, color=color, fontsize=14, ha='center', va='center')
-                    chart.axes.plot([x - 1, x + 1], [y, y], color='black', linewidth=1)
+    # Метки (с рамкой при выделении)
+    if chart.label_manager:
+        chart.label_manager.draw_labels(chart)
+
+    # # Метки
+    # if chart.label_manager and chart.label_manager.labels is not None:
+    #     for _, row in chart.label_manager.labels.iterrows():
+    #         match_idx = df[df['Date'] == pd.to_datetime(row['Date'])]
+    #         if not match_idx.empty:
+    #             index = match_idx.index[0] - start
+    #             if 0 <= index < len(view_df):
+    #                 x = index
+    #                 y = row['Price']
+    #                 label = row['Label'].lower()
+    #                 symbol = {'buy': '↑', 'addbuy': '⇑', 'sell': '↓', 'addsell': '⇓',
+    #                           'close buy': 'X', 'close sell': 'X', 'stoploss buy': '‼', 'stoploss sell': '‼'}.get(label, '?')
+    #                 color = {'buy': 'blue', 'addbuy': 'deepskyblue', 'sell': 'red', 'addsell': 'hotpink',
+    #                          'close buy': 'black', 'close sell': 'black', 'stoploss buy': 'orange', 'stoploss sell': 'orange'}.get(label, 'gray')
+    #                 chart.axes.text(x, y, symbol, color=color, fontsize=14, ha='center', va='center')
+    #                 chart.axes.plot([x - 1, x + 1], [y, y], color='black', linewidth=1)
 
     # Оформление
     chart.axes.set_xticks(range(0, len(view_df), max(len(view_df) // 10, 1)))

@@ -82,33 +82,46 @@ class CandlestickChart(QWidget):
         _plot_window(self)
 
     def _plot_window(self):
+        self.axes.clear()
+        self.rsi_axes.clear()
         _plot_window(self)
 
     def onclick(self, event: MouseEvent):
         if self.data is None or event.inaxes != self.axes:
             return
 
-        if event.button == MouseButton.MIDDLE:
-            self._middle_mouse_pressed = True
+        # === Двойной клик по метке (выделение/снятие) ===
+        if event.dblclick and self.label_manager:
+            self.label_manager.handle_double_click(event)
+            return
 
-        if event.button == MouseButton.RIGHT:
-
-            index = round(event.xdata)
-
-            if 0 <= index < len(self.data) and event.ydata is not None:
-                row = self.data.iloc[self.view_start_index + index].copy()
-
-                row['Price'] = float(event.ydata)  # вставляем точную цену по курсору
-
-                self.label_manager.handle_click(row, lambda: self._plot_window())
-
-        elif event.button == MouseButton.LEFT:
+        # === ЛКМ по графику ===
+        if event.button == MouseButton.LEFT:
+            if self.label_manager:
+                self.label_manager.handle_mouse_press(event)
+                if self.label_manager._dragging_label:
+                    return  # ❗️если тянем метку — не скроллим график
             self._dragging = True
             self._drag_start_x = event.xdata
+
+        # === СКМ (колёсико мыши) — включаем перекрестие ===
+        elif event.button == MouseButton.MIDDLE:
+            self._middle_mouse_pressed = True
+
+        # === ПКМ — добавление/редактирование метки ===
+        elif event.button == MouseButton.RIGHT:
+            index = round(event.xdata)
+            if 0 <= index < len(self.data) and event.ydata is not None:
+                row = self.data.iloc[self.view_start_index + index].copy()
+                row['Price'] = float(event.ydata)  # используем цену по курсору
+                self.label_manager.handle_click(row, lambda: self._plot_window())
 
     def on_mouse_release(self, event):
         self._dragging = False
         self._drag_start_x = None
+
+        if self.label_manager:
+            self.label_manager.handle_mouse_release(event)
 
         if event.button == MouseButton.MIDDLE:
             self._middle_mouse_pressed = False
@@ -116,18 +129,24 @@ class CandlestickChart(QWidget):
             self.candle_canvas.draw()
 
     def on_mouse_move(self, event):
+        # === Перекрестие ===
         if self._middle_mouse_pressed and event.inaxes == self.axes and event.xdata and event.ydata:
             self.draw_crosshair(event.xdata, event.ydata)
             return
 
-        if not self._dragging or event.xdata is None:
-            return
+        # === Перетаскивание метки ===
+        if self.label_manager and self.label_manager._dragging_label:
+            if event.inaxes == self.axes and event.ydata is not None:
+                self.label_manager.handle_mouse_drag(event)
+            return  # ❗️не даём скроллить график
 
-        dx = event.xdata - self._drag_start_x
-        bars_to_shift = int(-dx * 2)
-        if bars_to_shift != 0:
-            self.scroll_view(bars_to_shift)
-            self._drag_start_x = event.xdata
+        # === Прокрутка графика ===
+        if self._dragging and event.xdata is not None:
+            dx = event.xdata - self._drag_start_x
+            bars_to_shift = int(-dx * 2)
+            if bars_to_shift != 0:
+                self.scroll_view(bars_to_shift)
+                self._drag_start_x = event.xdata
 
     def on_scroll(self, event):
         if event.button == 'up':
