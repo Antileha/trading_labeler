@@ -12,6 +12,7 @@ __pycache__/
 *.csv
 !dataset/*.csv  # если хочешь оставить часть
 *.zip
+*.rar
 
 # Системные
 .DS_Store
