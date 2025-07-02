@@ -63,6 +63,9 @@ class CandlestickChart(QWidget):
 
         self._dragging = False
         self._drag_start_x = None
+        self._middle_mouse_pressed = False
+        self._crosshair_lines = {"v": None, "h": None}
+        self._crosshair_texts = {"price": None, "date": None}
 
     def scroll_view(self, direction):
         if self.data is None:
@@ -84,11 +87,21 @@ class CandlestickChart(QWidget):
     def onclick(self, event: MouseEvent):
         if self.data is None or event.inaxes != self.axes:
             return
+
+        if event.button == MouseButton.MIDDLE:
+            self._middle_mouse_pressed = True
+
         if event.button == MouseButton.RIGHT:
+
             index = round(event.xdata)
-            if 0 <= index < len(self.data):
-                row = self.data.iloc[self.view_start_index + index]
+
+            if 0 <= index < len(self.data) and event.ydata is not None:
+                row = self.data.iloc[self.view_start_index + index].copy()
+
+                row['Price'] = float(event.ydata)  # вставляем точную цену по курсору
+
                 self.label_manager.handle_click(row, lambda: self._plot_window())
+
         elif event.button == MouseButton.LEFT:
             self._dragging = True
             self._drag_start_x = event.xdata
@@ -97,13 +110,21 @@ class CandlestickChart(QWidget):
         self._dragging = False
         self._drag_start_x = None
 
+        if event.button == MouseButton.MIDDLE:
+            self._middle_mouse_pressed = False
+            self.clear_crosshair()
+            self.candle_canvas.draw()
+
     def on_mouse_move(self, event):
+        if self._middle_mouse_pressed and event.inaxes == self.axes and event.xdata and event.ydata:
+            self.draw_crosshair(event.xdata, event.ydata)
+            return
+
         if not self._dragging or event.xdata is None:
             return
 
         dx = event.xdata - self._drag_start_x
-        bars_to_shift = int(-dx * 2)  # Повышаем чувствительность прокрутки в 2 раза
-
+        bars_to_shift = int(-dx * 2)
         if bars_to_shift != 0:
             self.scroll_view(bars_to_shift)
             self._drag_start_x = event.xdata
@@ -114,3 +135,43 @@ class CandlestickChart(QWidget):
         elif event.button == 'down':
             self.view_window_size += 10
         self._plot_window()
+    def draw_crosshair(self, x, y):
+        # Удалить старые линии и подписи
+        for line in self._crosshair_lines.values():
+            if line: line.remove()
+        for text in self._crosshair_texts.values():
+            if text: text.remove()
+
+        # Новые линии
+        self._crosshair_lines["v"] = self.axes.axvline(x=x, color='gray', linestyle='--', linewidth=0.8)
+        self._crosshair_lines["h"] = self.axes.axhline(y=y, color='gray', linestyle='--', linewidth=0.8)
+
+        # Подписи
+        self._crosshair_texts["price"] = self.axes.text(
+            self.axes.get_xlim()[0], y, f"{y:.4f}",
+            va='center', ha='left', fontsize=8, backgroundcolor='white'
+        )
+        self._crosshair_texts["date"] = self.axes.text(
+            x, self.axes.get_ylim()[0], self.format_xdate(x),
+            va='bottom', ha='center', fontsize=8, backgroundcolor='white'
+        )
+
+        self.candle_canvas.draw()
+
+    def clear_crosshair(self):
+        for line in self._crosshair_lines.values():
+            if line: line.remove()
+        for text in self._crosshair_texts.values():
+            if text: text.remove()
+        self._crosshair_lines = {"v": None, "h": None}
+        self._crosshair_texts = {"price": None, "date": None}
+
+    def format_xdate(self, x):
+        try:
+            index = int(round(x))
+            if 0 <= index < len(self.data):
+                date = self.data.iloc[self.view_start_index + index]['Date']
+                return str(date)[:10]
+        except:
+            pass
+        return f"{x:.2f}"
