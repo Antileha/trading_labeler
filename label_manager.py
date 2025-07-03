@@ -1,14 +1,32 @@
-from PyQt5.QtWidgets import QInputDialog
 import pandas as pd
+from PyQt5.QtWidgets import QInputDialog
 
-LABEL_OPTIONS = ["buy", "addbuy", "sell", "addsell", "close_buy", "close_sell"]
+LABEL_OPTIONS = ["buy", "addbuy", "sell", "addsell", "close_buy", "close_sell", 'stoploss']
 
 class LabelManager:
     def __init__(self, chart):
         self.chart = chart
         self.labels = pd.DataFrame(columns=["Date", "Label", "Price"])
+        self._selected_label_index = None
+        self._dragging_label = False
+        self._history = []
+
+    def save_state(self):
+        self._history.append(self.labels.copy(deep=True))
+        if len(self._history) > 100:
+            self._history.pop(0)
+
+    def undo_last_action(self):
+        if self._history:
+            self.labels = self._history.pop()
+            self._selected_label_index = None
+            print("[UNDO] Последнее действие отменено.")
+            self.chart._plot_window()
+        else:
+            print("[UNDO] История пуста")
 
     def handle_click(self, row, refresh_callback):
+        self.save_state()
         date = row['Date']
         existing = self.labels[self.labels['Date'] == date]
 
@@ -18,10 +36,12 @@ class LabelManager:
             if not ok:
                 return
             if choice == "Добавить новую":
+                self.save_state()
                 self._add_label(row, refresh_callback)
             elif choice == "Удалить метку":
                 index_to_delete, ok2 = QInputDialog.getInt(self.chart, "Удалить", "Индекс метки:", 0, 0, len(existing) - 1)
                 if ok2:
+                    self.save_state()
                     self.labels.drop(existing.index[index_to_delete], inplace=True)
                     self.labels.reset_index(drop=True, inplace=True)
                     refresh_callback()
@@ -34,10 +54,12 @@ class LabelManager:
                 price, ok2 = QInputDialog.getDouble(self.chart, "Изменить цену", "Цена:", float(selected.Price), 0.0, 1e10, 5)
                 if not ok2:
                     return
+                self.save_state()
                 self.labels.at[existing.index[idx_choice], 'Label'] = label
                 self.labels.at[existing.index[idx_choice], 'Price'] = price
                 refresh_callback()
         else:
+            self.save_state()
             self._add_label(row, refresh_callback)
 
     def _add_label(self, row, refresh_callback):
@@ -45,56 +67,77 @@ class LabelManager:
         if not ok or not label:
             return
 
-        price, ok_price = QInputDialog.getDouble(self.chart, "Цена", "Введите цену сигнала:", float(row['Close']), 0.0, 1e10, 5)
+        price, ok_price = QInputDialog.getDouble(self.chart, "Цена", "Введите цену сигнала:", float(row['Price']), 0.0, 1e10, 5)
         if not ok_price:
             return
 
+        self.save_state()
         self.labels = pd.concat([
             self.labels,
             pd.DataFrame([[row['Date'], label, price]], columns=["Date", "Label", "Price"])
         ], ignore_index=True)
         refresh_callback()
 
-    def clear(self):
-        self.labels = self.labels.iloc[0:0]
+    def handle_double_click(self, event):
+        if event.xdata is None or event.ydata is None:
+            return
 
-    def save_label_session(self, filepath='labels_session.csv'):
-        """Сохраняет текущие метки в указанный файл"""
-        self.labels.to_csv(filepath, index=False)
-        print(f"[INFO] Разметка сохранена в {filepath}")
+        for i, row in self.labels.iterrows():
+            label_date = row["Date"]
+            label_price = row["Price"]
+            df = self.chart.original_data
+            if label_date not in df["Date"].values:
+                continue
 
-    def load_label_session(self, filepath='labels_session.csv'):
-        """Загружает разметку из указанного файла"""
-        try:
-            loaded = pd.read_csv(filepath, parse_dates=['Date'])
-            loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
-            self.labels = pd.concat([self.labels, loaded], ignore_index=True)
-            self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
-            self.labels.sort_values(by='Date', inplace=True)
-            print(f"[INFO] Загружено {len(loaded)} меток из {filepath}")
-        except FileNotFoundError:
-            print(f"[WARN] Файл {filepath} не найден")
-        except Exception as e:
-            print(f"[ERROR] Ошибка при загрузке разметки: {e}")
+            global_idx = df[df["Date"] == label_date].index[0]
+            local_idx = global_idx - self.chart.view_start_index
 
-    def autosave_labels(self, filepath='labels_autosave.csv'):
-        """Автоматическое сохранение в конец сессии"""
-        self.labels.to_csv(filepath, index=False)
-        print(f"[AUTO] Автосохранение в {filepath}")
+            if not (0 <= local_idx < self.chart.view_window_size):
+                continue
 
-    # def autoload_labels(self, filepath='labels_autosave.csv'):
-    #     """Автоматическая загрузка меток при запуске"""
-    #     try:
-    #         loaded = pd.read_csv(filepath, parse_dates=['Date'])
-    #         loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
-    #         self.labels = pd.concat([self.labels, loaded], ignore_index=True)
-    #         self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
-    #         self.labels.sort_values(by='Date', inplace=True)
-    #         print(f"[AUTO] Загружено {len(loaded)} автосохранённых меток из {filepath}")
-    #     except FileNotFoundError:
-    #         print("[INFO] Автосохранение отсутствует")
-    #     except Exception as e:
-    #         print(f"[ERROR] Ошибка автозагрузки: {e}")
+            dx = abs(event.xdata - local_idx)
+            dy = abs(event.ydata - label_price)
+
+            if dx < 1 and dy < 0.5:
+                if self._selected_label_index == i:
+                    print(f"[DEBUG] Снята метка: {row['Label']} @ {row['Price']}")
+                    self._selected_label_index = None
+                    self._dragging_label = False
+                else:
+                    print(f"[DEBUG] Выбрана метка: {row['Label']} @ {row['Price']}")
+                    self._selected_label_index = i
+                    self._dragging_label = False
+                self.chart._plot_window()
+                return
+
+    def handle_mouse_press(self, event):
+        if event.button == 1 and self._selected_label_index is not None:
+            print(f"[DEBUG] Активировано перемещение метки")
+            self._dragging_label = True
+
+    def handle_mouse_drag(self, event):
+        if self._dragging_label and self._selected_label_index is not None:
+            if event.ydata is None:
+                return
+
+            self.save_state()
+            y_price = float(event.ydata)
+            self.labels.at[self._selected_label_index, 'Price'] = y_price
+
+            if self.chart.ctrl_pressed and event.xdata is not None:
+                x_index = int(round(event.xdata))
+                df = self.chart.data
+                if 0 <= x_index < len(df):
+                    new_date = df.iloc[x_index]['Date']
+                    self.labels.at[self._selected_label_index, 'Date'] = new_date
+                    print(f"[DEBUG] Перемещаем метку {self._selected_label_index} → {new_date}, {y_price:.5f}")
+
+            self.chart._plot_window()
+
+    def handle_mouse_release(self, event):
+        if self._dragging_label:
+            print("[DEBUG] Завершено перемещение")
+        self._dragging_label = False
 
     def draw_labels(self, chart):
         if self.labels.empty or chart.data is None:
@@ -102,24 +145,21 @@ class LabelManager:
 
         df_window = chart.data.reset_index(drop=True)
         df_original = chart.original_data.reset_index(drop=True)
-
         date_to_global_idx = {row["Date"]: idx for idx, row in df_original.iterrows()}
 
-        for _, row in self.labels.iterrows():
+        for i, row in self.labels.iterrows():
             date = row["Date"]
             if date not in date_to_global_idx:
                 continue
-
             global_idx = date_to_global_idx[date]
             local_idx = global_idx - chart.view_start_index
-
             if not (0 <= local_idx < chart.view_window_size):
-                continue  # вне области видимости
+                continue
 
             price = row["Price"]
             label = row["Label"]
+            is_selected = (i == self._selected_label_index)
 
-            # Цвет и маркер
             if label.lower() in ['buy', 'addbuy']:
                 color = 'cyan'
                 marker = '^'
@@ -128,7 +168,7 @@ class LabelManager:
                 marker = 'v'
             elif label.lower() in ['close_buy', 'close_sell']:
                 color = 'black'
-                marker = 'x'
+                marker = 'X'
             elif 'stoploss' in label.lower():
                 color = 'orange'
                 marker = 's'
@@ -136,17 +176,80 @@ class LabelManager:
                 color = 'blue'
                 marker = 'o'
 
-            # Точка
-            chart.axes.scatter(local_idx, price, color=color, marker=marker, s=60, zorder=5)
+            chart.axes.scatter(
+                local_idx, price,
+                s=100,
+                marker=marker,
+                facecolors=color,
+                edgecolors='red' if is_selected else 'black',
+                linewidths=2 if is_selected else 0.5,
+                zorder=5
+            )
 
-            # Горизонтальный отрезок длиной 3 бара
             x_start = max(0, local_idx - 2)
             x_end = min(chart.view_window_size - 1, local_idx + 3)
-            chart.axes.plot([x_start, x_end], [price, price], color='black', linestyle='-', alpha=1, linewidth=1.5)
+            chart.axes.plot(
+                [x_start, x_end], [price, price],
+                color='black', linestyle='-', alpha=1, linewidth=1.5, zorder=4
+            )
+
+    def clear(self):
+        self.labels = self.labels.iloc[0:0]
+        self._selected_label_index = None
+        self._dragging_label = False
+        self._history.clear()
+
+    def save_label_session(self, filepath='labels_session.csv'):
+        """Сохраняет текущие метки в указанный файл"""
+
+        self.labels.to_csv(filepath, index=False)
+        print(f"[INFO] Разметка сохранена в {filepath}")
+
+    def load_label_session(self, filepath='labels_session.csv'):
+        try:
+            df = pd.read_csv(filepath)
+
+            # Если в файле есть 'Date' — пытаемся преобразовать
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            else:
+                raise ValueError("Файл меток не содержит колонки 'Date'")
+
+            df = df.dropna(subset=['Date', 'Price', 'Label'])
+            self.labels = pd.concat([self.labels, df[['Date', 'Label', 'Price']]], ignore_index=True)
+            self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
+            self.labels.sort_values(by='Date', inplace=True)
+
+            print(f"[INFO] Загружено {len(df)} меток из {filepath}")
+        except FileNotFoundError:
+            print(f"[WARN] Файл {filepath} не найден")
+        except Exception as e:
+            print(f"[ERROR] Ошибка при загрузке разметки: {e}")
+
+    def autosave_labels(self, filepath='labels_autosave.csv'):
+        """Автоматическое сохранение в конец сессии"""
+
+        self.labels.to_csv(filepath, index=False)
+        print(f"[AUTO] Автосохранение в {filepath}")
+
+    def load_labels_from_dataframe(self, df):
+        """Загружает метки из датафрейма с колонками Label и LabelPrice"""
+        if 'Label' not in df.columns or 'LabelPrice' not in df.columns:
+            print("[LOAD] Нет нужных колонок Label и LabelPrice в датафрейме")
+            return
+
+        label_rows = df[['Date', 'Label', 'LabelPrice']].dropna(subset=['Label'])
+        label_rows = label_rows.rename(columns={'LabelPrice': 'Price'})
+        label_rows['Date'] = pd.to_datetime(label_rows['Date'])
+
+        self.labels = label_rows[['Date', 'Label', 'Price']].reset_index(drop=True)
+        self._selected_label_index = None
+        self._dragging_label = False
+        self.chart._plot_window()
+        print(f"[LOAD] Загружено {len(self.labels)} меток из CSV")
 
 
 def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
-
     df = chart.data.copy()
     df['Label'] = ''
     df['LabelPrice'] = None
@@ -166,3 +269,5 @@ def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None)
     if selected_columns:
         cols_to_save = ['Date'] + [col for col in selected_columns if col != 'Date']
         df[cols_to_save].to_csv(filepath, index=False)
+
+
