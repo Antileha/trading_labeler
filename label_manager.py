@@ -226,6 +226,22 @@ class LabelManager:
         self.labels.to_csv(filepath, index=False)
         print(f"[AUTO] Автосохранение в {filepath}")
 
+    def load_labels_from_dataframe(self, df):
+        """Загружает метки из датафрейма с колонками Label и LabelPrice"""
+        if 'Label' not in df.columns or 'LabelPrice' not in df.columns:
+            print("[LOAD] Нет нужных колонок Label и LabelPrice в датафрейме")
+            return
+
+        label_rows = df[['Date', 'Label', 'LabelPrice']].dropna(subset=['Label'])
+        label_rows = label_rows.rename(columns={'LabelPrice': 'Price'})
+        label_rows['Date'] = pd.to_datetime(label_rows['Date'])
+
+        self.labels = label_rows[['Date', 'Label', 'Price']].reset_index(drop=True)
+        self._selected_label_index = None
+        self._dragging_label = False
+        self.chart._plot_window()
+        print(f"[LOAD] Загружено {len(self.labels)} меток из CSV")
+
 
 def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
     df = chart.data.copy()
@@ -247,3 +263,5 @@ def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None)
     if selected_columns:
         cols_to_save = ['Date'] + [col for col in selected_columns if col != 'Date']
         df[cols_to_save].to_csv(filepath, index=False)
+
+

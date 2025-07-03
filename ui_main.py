@@ -9,6 +9,7 @@ from indicator_dialog import IndicatorManagerDialog
 from label_manager import (
     save_labeled_data
 )
+import pandas as pd
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -79,12 +80,23 @@ class MainWindow(QMainWindow):
         if not file_path:
             return
         try:
-            self.data = load_csv_data(file_path)
+            df = pd.read_csv(file_path, parse_dates=['Date'])
+
+            required_cols = {'Date', 'Open', 'High', 'Low', 'Close', 'Volume'}
+            if not required_cols.issubset(df.columns):
+                raise ValueError(f"Не хватает обязательных колонок: {required_cols - set(df.columns)}")
+
+            self.data = df[list(required_cols)].copy()
             self.label.setText(f"Файл загружен: {file_path.split('/')[-1]}\nСтрок: {len(self.data)}")
+
             self.label_manager.clear()
-            self.chart.plot(self.data, tf="4h")  # отрисовываем график
-            self.label_manager.autoload_labels('labels_autosave.csv')  # подгружаем автосохранённые метки
+            self.chart.plot(self.data, tf=self.tf_selector.currentText())
             self.update_plot()
+
+            # Если есть метки — загружаем
+            if 'Label' in df.columns and 'LabelPrice' in df.columns:
+                self.label_manager.load_labels_from_dataframe(df)
+
         except Exception as e:
             self.label.setText(f"Ошибка при загрузке: {str(e)}")
 
