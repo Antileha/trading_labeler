@@ -206,15 +206,21 @@ class LabelManager:
         print(f"[INFO] Разметка сохранена в {filepath}")
 
     def load_label_session(self, filepath='labels_session.csv'):
-        """Загружает разметку из указанного файла"""
-
         try:
-            loaded = pd.read_csv(filepath, parse_dates=['Date'])
-            loaded = loaded.dropna(subset=['Date', 'Price', 'Label'])
-            self.labels = pd.concat([self.labels, loaded], ignore_index=True)
+            df = pd.read_csv(filepath)
+
+            # Если в файле есть 'Date' — пытаемся преобразовать
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            else:
+                raise ValueError("Файл меток не содержит колонки 'Date'")
+
+            df = df.dropna(subset=['Date', 'Price', 'Label'])
+            self.labels = pd.concat([self.labels, df[['Date', 'Label', 'Price']]], ignore_index=True)
             self.labels.drop_duplicates(subset=['Date', 'Label'], inplace=True)
             self.labels.sort_values(by='Date', inplace=True)
-            print(f"[INFO] Загружено {len(loaded)} меток из {filepath}")
+
+            print(f"[INFO] Загружено {len(df)} меток из {filepath}")
         except FileNotFoundError:
             print(f"[WARN] Файл {filepath} не найден")
         except Exception as e:

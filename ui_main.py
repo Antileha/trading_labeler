@@ -9,6 +9,7 @@ from indicator_dialog import IndicatorManagerDialog
 from label_manager import (
     save_labeled_data
 )
+
 import pandas as pd
 
 class MainWindow(QMainWindow):
@@ -75,27 +76,27 @@ class MainWindow(QMainWindow):
             self.chart.indicator_config = dialog.get_updated_config()
             self.chart._plot_window()
 
+    from data_loader import load_csv_data  # Убедись, что импорт есть
+
     def load_csv(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Выберите CSV файл", "", "CSV Files (*.csv)")
         if not file_path:
             return
+
         try:
-            df = pd.read_csv(file_path, parse_dates=['Date'])
+            df = load_csv_data(file_path)  # ✅ Универсальная загрузка
 
-            required_cols = {'Date', 'Open', 'High', 'Low', 'Close', 'Volume'}
-            if not required_cols.issubset(df.columns):
-                raise ValueError(f"Не хватает обязательных колонок: {required_cols - set(df.columns)}")
-
-            self.data = df[list(required_cols)].copy()
-            self.label.setText(f"Файл загружен: {file_path.split('/')[-1]}\nСтрок: {len(self.data)}")
-
+            self.data = df.copy()
+            self.label.setText(f"Файл загружен: {file_path.split('/')[-1]}\nСтрок: {len(df)}")
             self.label_manager.clear()
-            self.chart.plot(self.data, tf=self.tf_selector.currentText())
-            self.update_plot()
 
-            # Если есть метки — загружаем
+            # 🟢 Загрузка меток из колонок Label и LabelPrice, если они есть
             if 'Label' in df.columns and 'LabelPrice' in df.columns:
                 self.label_manager.load_labels_from_dataframe(df)
+
+            # ⏬ Отрисовка
+            self.chart.plot(df, tf=self.tf_selector.currentText())
+            self.update_plot()
 
         except Exception as e:
             self.label.setText(f"Ошибка при загрузке: {str(e)}")
