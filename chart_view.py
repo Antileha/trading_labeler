@@ -81,6 +81,10 @@ class CandlestickChart(QWidget):
         elif event.key == 'ctrl+z' or (event.key == 'z' and self.ctrl_pressed):
             if self.label_manager:
                 self.label_manager.undo_last_action()
+        elif event.key == 'delete':
+            if self.label_manager and self.label_manager._selected_label_index is not None:
+                self.label_manager.delete_selected_label()
+                self._plot_window()
 
     def on_key_release(self, event):
         if event.key == 'control':

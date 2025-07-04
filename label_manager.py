@@ -234,6 +234,15 @@ class LabelManager:
         self.chart._plot_window()
         print(f"[LOAD] Загружено {len(self.labels)} меток из CSV")
 
+    def delete_selected_label(self):
+        if self._selected_label_index is not None:
+            self.save_state()
+            self.labels.drop(index=self._selected_label_index, inplace=True)
+            self.labels.reset_index(drop=True, inplace=True)
+            print(f"[DELETE] Удалена метка с индексом {self._selected_label_index}")
+            self._selected_label_index = None
+            self.chart._plot_window()
+
 
 def save_labeled_data(chart, filepath='labeled_data.csv', selected_columns=None):
     df = chart.data.copy()
