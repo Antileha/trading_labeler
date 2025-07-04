@@ -1,0 +1,8 @@
+[
+  {"type": "EMA", "period": 13, "axis": "main", "color": "blue"},
+  {"type": "EMA", "period": 50, "axis": "main", "color": "red"},
+  {"type": "EMA", "period": 100, "axis": "main", "color": "green"},
+  {"type": "RSI", "period": 21, "axis": "rsi", "color": "green"},
+  {"type": "RSI", "period": 12, "axis": "rsi", "color": "red"},
+  {"type": "RSI", "period": 55, "axis": "rsi", "color": "cyan"}
+]

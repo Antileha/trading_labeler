@@ -22,6 +22,8 @@ class MainWindow(QMainWindow):
         self.label_manager = LabelManager(self.chart)
         self.chart.label_manager = self.label_manager
 
+        self.load_default_indicator_template()
+
         self.label = QLabel("Загрузите CSV с историей торгов")
         self.tf_selector = QComboBox()
         self.tf_selector.addItems(["4h", "1d", "1w"])
@@ -59,6 +61,16 @@ class MainWindow(QMainWindow):
         top_layout.addWidget(self.save_temp_button)
         top_layout.addWidget(self.load_temp_button)
         top_layout.addWidget(self.indicator_button)
+
+        # Добавляем шаблоны после основного набора
+        self.save_template_button = QPushButton("💾 Шаблон индикаторов")
+        self.load_template_button = QPushButton("📂 Загрузить шаблон")
+
+        self.save_template_button.clicked.connect(self.save_indicator_template)
+        self.load_template_button.clicked.connect(self.load_indicator_template)
+
+        top_layout.addWidget(self.save_template_button)
+        top_layout.addWidget(self.load_template_button)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
@@ -141,6 +153,38 @@ class MainWindow(QMainWindow):
                 if filepath:
                     save_labeled_data(self.chart, filepath, selected_columns)
 
+    def save_indicator_template(self):
+        from indicator_utils import save_indicator_template
+        filepath, _ = QFileDialog.getSaveFileName(self, "Сохранить шаблон индикаторов", "indicators_template.json",
+                                                  "JSON Files (*.json)")
+        if filepath:
+            save_indicator_template(self.chart.indicator_config, filepath)
+
+    def load_indicator_template(self):
+        from indicator_utils import load_indicator_template
+        filepath, _ = QFileDialog.getOpenFileName(self, "Загрузить шаблон индикаторов", "", "JSON Files (*.json)")
+        if filepath:
+            config = load_indicator_template(filepath)
+            if config:
+                self.chart.indicator_config = config
+                self.chart._plot_window()
+
+    def load_default_indicator_template(self):
+        from indicator_utils import load_indicator_template
+        import os
+
+        candidates = [
+            "default.json",
+            os.path.join("templates", "default.json")
+        ]
+
+        for path in candidates:
+            if os.path.exists(path):
+                config = load_indicator_template(path)
+                if config:
+                    self.chart.indicator_config = config
+                    print(f"[AUTO] Применён шаблон индикаторов: {path}")
+                    break
 class ColumnSelectionDialog(QDialog):
     def __init__(self, columns, parent=None):
         super().__init__(parent)
