@@ -79,36 +79,24 @@ class LabelManager:
         refresh_callback()
 
     def handle_double_click(self, event):
-        if event.xdata is None or event.ydata is None:
+        if event.xdata is None or event.ydata is None or not hasattr(self.chart, "view_dates"):
             return
 
-        for i, row in self.labels.iterrows():
-            label_date = row["Date"]
-            label_price = row["Price"]
-            df = self.chart.original_data
-            if label_date not in df["Date"].values:
-                continue
-
-            global_idx = df[df["Date"] == label_date].index[0]
-            local_idx = global_idx - self.chart.view_start_index
-
-            if not (0 <= local_idx < self.chart.view_window_size):
-                continue
-
-            dx = abs(event.xdata - local_idx)
-            dy = abs(event.ydata - label_price)
-
-            if dx < 1 and dy < 0.5:
-                if self._selected_label_index == i:
-                    print(f"[DEBUG] Снята метка: {row['Label']} @ {row['Price']}")
-                    self._selected_label_index = None
-                    self._dragging_label = False
-                else:
-                    print(f"[DEBUG] Выбрана метка: {row['Label']} @ {row['Price']}")
-                    self._selected_label_index = i
-                    self._dragging_label = False
-                self.chart._plot_window()
-                return
+        x_idx = int(round(event.xdata))
+        if 0 <= x_idx < len(self.chart.view_dates):
+            date = self.chart.view_dates.iloc[x_idx]
+            for i, row in self.labels.iterrows():
+                if row["Date"] == date and abs(row["Price"] - event.ydata) < 0.5:
+                    if self._selected_label_index == i:
+                        print(f"[DEBUG] Снята метка: {row['Label']} @ {row['Price']}")
+                        self._selected_label_index = None
+                        self._dragging_label = False
+                    else:
+                        print(f"[DEBUG] Выбрана метка: {row['Label']} @ {row['Price']}")
+                        self._selected_label_index = i
+                        self._dragging_label = False
+                    self.chart._plot_window()
+                    return
 
     def handle_mouse_press(self, event):
         if event.button == 1 and self._selected_label_index is not None:
@@ -126,9 +114,8 @@ class LabelManager:
 
             if self.chart.ctrl_pressed and event.xdata is not None:
                 x_index = int(round(event.xdata))
-                df = self.chart.data
-                if 0 <= x_index < len(df):
-                    new_date = df.iloc[x_index]['Date']
+                if 0 <= x_index < len(self.chart.view_dates):
+                    new_date = self.chart.view_dates.iloc[x_index]
                     self.labels.at[self._selected_label_index, 'Date'] = new_date
                     print(f"[DEBUG] Перемещаем метку {self._selected_label_index} → {new_date}, {y_price:.5f}")
 
@@ -140,26 +127,23 @@ class LabelManager:
         self._dragging_label = False
 
     def draw_labels(self, chart):
-        if self.labels.empty or chart.data is None:
+        if self.labels.empty or chart.data is None or not hasattr(chart, "view_dates"):
             return
 
-        df_window = chart.data.reset_index(drop=True)
-        df_original = chart.original_data.reset_index(drop=True)
-        date_to_global_idx = {row["Date"]: idx for idx, row in df_original.iterrows()}
+        # Сопоставление: дата → индекс в текущем окне отображения
+        date_to_index = {date: idx for idx, date in enumerate(chart.view_dates)}
 
         for i, row in self.labels.iterrows():
             date = row["Date"]
-            if date not in date_to_global_idx:
-                continue
-            global_idx = date_to_global_idx[date]
-            local_idx = global_idx - chart.view_start_index
-            if not (0 <= local_idx < chart.view_window_size):
+            if date not in date_to_index:
                 continue
 
+            local_idx = date_to_index[date]
             price = row["Price"]
             label = row["Label"]
             is_selected = (i == self._selected_label_index)
 
+            # Выбор цвета и формы метки
             if label.lower() in ['buy', 'addbuy']:
                 color = 'cyan'
                 marker = '^'
@@ -176,6 +160,7 @@ class LabelManager:
                 color = 'blue'
                 marker = 'o'
 
+            # Отрисовка метки
             chart.axes.scatter(
                 local_idx, price,
                 s=100,
@@ -186,6 +171,7 @@ class LabelManager:
                 zorder=5
             )
 
+            # Горизонтальная линия уровня
             x_start = max(0, local_idx - 2)
             x_end = min(chart.view_window_size - 1, local_idx + 3)
             chart.axes.plot(
