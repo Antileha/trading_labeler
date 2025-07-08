@@ -145,13 +145,16 @@ class LabelManager:
 
             # Выбор цвета и формы метки
             if label.lower() in ['buy', 'addbuy']:
-                color = 'cyan'
+                color = 'blue'
                 marker = '^'
             elif label.lower() in ['sell', 'addsell']:
                 color = 'red'
                 marker = 'v'
-            elif label.lower() in ['close_buy', 'close_sell']:
-                color = 'black'
+            elif label.lower() in ['close_buy']:
+                color = 'blue'
+                marker = 'X'
+            elif label.lower() in ['close_sell']:
+                color = 'red'
                 marker = 'X'
             elif 'stoploss' in label.lower():
                 color = 'orange'
@@ -163,11 +166,12 @@ class LabelManager:
             # Отрисовка метки
             chart.axes.scatter(
                 local_idx, price,
-                s=100,
+                s=200,
                 marker=marker,
                 facecolors=color,
                 edgecolors='red' if is_selected else 'black',
                 linewidths=2 if is_selected else 0.5,
+                alpha=0.65,
                 zorder=5
             )
 
